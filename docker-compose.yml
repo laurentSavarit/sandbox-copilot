@@ -20,18 +20,6 @@ services:
       # Block log — bind-mounted from the repo so you can inspect it locally
       - ./logs:/sandbox-logs
 
-    # ── Environment variables ─────────────────────────────────────────────────
-    # Copy .env.example to .env and fill in your token.
-    # COPILOT_GITHUB_TOKEN is checked first, then GH_TOKEN, then GITHUB_TOKEN.
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      # Allow override from shell environment
-      - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN:-}
-      - GH_TOKEN=${GH_TOKEN:-}
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-
     # ── Working directory inside the container ────────────────────────────────
     working_dir: /workspace
 

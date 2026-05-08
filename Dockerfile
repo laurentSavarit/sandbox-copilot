@@ -1,30 +1,25 @@
-# ── Base image: lightweight Debian ───────────────────────────────────────────
-FROM debian:bookworm-slim
+# ── Base image: Ubuntu 24.04 LTS (better security patch cadence than Debian stable) ──
+FROM ubuntu:24.04
 
 # Avoid interactive prompts during package install
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ── System dependencies ───────────────────────────────────────────────────────
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# ── System dependencies + headless keyring support ──────────────────────────
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
+      dbus \
       git \
+      gnome-keyring \
       gnupg \
       jq \
+      libsecret-1-0 \
       make \
       python3 \
       python3-pip \
       python3-venv \
       unzip \
       xz-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# ── Headless keyring support (for Copilot CLI credential storage) ─────────────
-# gnome-keyring-daemon provides a Secret Service backend without a desktop session
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      dbus \
-      gnome-keyring \
-      libsecret-1-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Node.js 22 LTS (via NodeSource) ──────────────────────────────────────────
@@ -63,6 +58,9 @@ COPY scripts/az-wrapper.sh  /usr/local/bin/az
 COPY scripts/aws-wrapper.sh /usr/local/bin/aws
 COPY scripts/entrypoint.sh  /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/az /usr/local/bin/aws /usr/local/bin/entrypoint.sh
+
+# ── Sandbox blocklist config ──────────────────────────────────────────────────
+COPY config/ /etc/sandbox/
 
 # ── Workspace ─────────────────────────────────────────────────────────────────
 WORKDIR /workspace

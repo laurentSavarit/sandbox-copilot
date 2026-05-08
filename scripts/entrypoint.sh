@@ -4,19 +4,32 @@
 set -euo pipefail
 
 # ── Headless keyring (avoids "system vault not available" warning) ───────────
-# Start a D-Bus session then unlock gnome-keyring with an empty password.
-# This gives the Copilot CLI a working Secret Service backend for token storage.
+# Start a D-Bus session, then unlock gnome-keyring with an empty password.
+# --start (not --daemonize) prints GNOME_KEYRING_CONTROL + GNOME_KEYRING_PID
+# to stdout so we can eval them — without this, libsecret can't find the socket.
 if command -v dbus-daemon &>/dev/null && command -v gnome-keyring-daemon &>/dev/null; then
-  DBUS_ADDR=$(dbus-daemon --fork --session --print-address 2>/dev/null) || true
-  if [[ -n "${DBUS_ADDR}" ]]; then
+  DBUS_ADDR=$(dbus-daemon --session --fork --print-address 2>/dev/null) || true
+  if [[ -n "${DBUS_ADDR:-}" ]]; then
     export DBUS_SESSION_BUS_ADDRESS="${DBUS_ADDR}"
-    echo -n "" | gnome-keyring-daemon --unlock --components=secrets --daemonize \
-      >/dev/null 2>&1 || true
+    GKD_OUT=$(echo "" | gnome-keyring-daemon --unlock --start --components=secrets 2>/dev/null) || true
+    eval "${GKD_OUT}" 2>/dev/null || true
+    export GNOME_KEYRING_CONTROL GNOME_KEYRING_PID 2>/dev/null || true
   fi
 fi
 
 # ── Ensure log file exists and is writable ───────────────────────────────────
 mkdir -p /sandbox-logs && touch /sandbox-logs/sandbox-blocked.log 2>/dev/null || true
+
+# ── Azure CLI writable config dir ────────────────────────────────────────────
+# ~/.azure is mounted read-only (host credentials). Azure CLI writes runtime
+# files (azureProfile.json, telemetry, logs) on every invocation — so we
+# shadow the mount by copying credentials to a writable tmpfs dir and pointing
+# AZURE_CONFIG_DIR there. The original mount is never modified.
+export AZURE_CONFIG_DIR=/tmp/azure-config
+mkdir -p "${AZURE_CONFIG_DIR}"
+if [[ -d /root/.azure && -n "$(ls -A /root/.azure 2>/dev/null)" ]]; then
+  cp -a /root/.azure/. "${AZURE_CONFIG_DIR}/"
+fi
 
 # ── Daemon mode (sleep infinity) — skip interactive banner ───────────────────
 if [[ "${1:-}" == "sleep" ]]; then
@@ -26,28 +39,19 @@ fi
 # ── Banner (interactive sessions only) ───────────────────────────────────────
 cat <<'EOF'
 ╔══════════════════════════════════════════════════════════════╗
-║           GitHub Copilot CLI — Sandbox Environment          ║
+║           GitHub Copilot CLI — Sandbox Environment           ║
 ╠══════════════════════════════════════════════════════════════╣
-║  BLOCKED commands:                                          ║
-║    az  → delete, remove, purge (any positional arg)        ║
-║    aws → delete-*, terminate-*, remove-*, s3 rm, purge     ║
 ║                                                              ║
-║  Blocked attempts are logged to:                            ║
-║    logs/sandbox-blocked.log  (in your repo)                 ║
+║  Destructive az/aws commands are blocked and logged.         ║
+║  Customize:    config/az-blocklist.conf                      ║
+║                config/aws-blocklist.conf                     ║
 ║                                                              ║
-║  Workspace: current host directory mounted at /workspace    ║
-║  Credentials: ~/.aws and ~/.azure mounted read-only         ║
+║  Blocked log:  logs/sandbox-blocked.log                      ║
+║  Workspace:    /workspace                                    ║
+║  Credentials:  ~/.aws and ~/.azure  (read-only)              ║
+║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 EOF
-
-# ── Auth check ───────────────────────────────────────────────────────────────
-TOKEN="${COPILOT_GITHUB_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
-if [[ -z "${TOKEN}" ]]; then
-  echo ""
-  echo "⚠  WARNING: No GitHub token found in environment."
-  echo "   Set COPILOT_GITHUB_TOKEN (or GH_TOKEN / GITHUB_TOKEN) before running copilot."
-  echo ""
-fi
 
 # ── Execute the provided command (or drop to bash) ──────────────────────────
 if [[ $# -eq 0 ]]; then

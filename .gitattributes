@@ -1,0 +1,16 @@
+# Enforce LF line endings for all shell scripts — critical for Docker builds on Windows.
+# Without this, git on Windows converts \n → \r\n, which breaks bash inside the container.
+
+* text=auto
+
+# Shell scripts: always LF
+*.sh    text eol=lf
+
+# PowerShell: CRLF on Windows checkout
+*.ps1   text eol=crlf
+
+# Docker / config files: LF
+Dockerfile      text eol=lf
+docker-compose.yml text eol=lf
+Makefile        text eol=lf
+config/**       text eol=lf

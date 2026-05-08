@@ -46,18 +46,8 @@ VOL_ARGS=(
 [[ -d "$HOME/.aws" ]]   && VOL_ARGS+=(-v "$HOME/.aws:/root/.aws:ro")
 [[ -d "$HOME/.azure" ]] && VOL_ARGS+=(-v "$HOME/.azure:/root/.azure:ro")
 
-ENV_ARGS=(
-  -e "COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN:-}"
-  -e "GH_TOKEN=${GH_TOKEN:-}"
-  -e "GITHUB_TOKEN=${GITHUB_TOKEN:-}"
-)
-if [[ -f "$SANDBOX_DIR/.env" ]]; then
-  ENV_ARGS+=(--env-file "$SANDBOX_DIR/.env")
-fi
-
 exec docker run --rm -it \
   "${VOL_ARGS[@]}" \
-  "${ENV_ARGS[@]}" \
   -w /workspace \
   "$IMAGE" \
   "$@"
