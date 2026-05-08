@@ -1,0 +1,38 @@
+services:
+  copilot-sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sandbox-copilot:latest
+    container_name: copilot-sandbox
+
+    # ── Interactive CLI support ───────────────────────────────────────────────
+    stdin_open: true
+    tty: true
+
+    # ── Runtime volumes are managed by sandbox.sh (docker run/exec directly) ─
+    # Compose is only used for `make build`. Volumes below are for reference.
+    volumes:
+      - ${HOME}/.aws:/root/.aws:ro
+      # Azure credentials — read-only
+      - ${HOME}/.azure:/root/.azure:ro
+      # Sandbox block log — accessible from host for inspection
+      # Block log — bind-mounted from the repo so you can inspect it locally
+      - ./logs:/sandbox-logs
+
+    # ── Environment variables ─────────────────────────────────────────────────
+    # Copy .env.example to .env and fill in your token.
+    # COPILOT_GITHUB_TOKEN is checked first, then GH_TOKEN, then GITHUB_TOKEN.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Allow override from shell environment
+      - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN:-}
+      - GH_TOKEN=${GH_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+
+    # ── Working directory inside the container ────────────────────────────────
+    working_dir: /workspace
+
+# No named volumes — workspace is always a bind-mount from the host.
